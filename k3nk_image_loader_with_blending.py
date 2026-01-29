@@ -12,7 +12,8 @@ class K3NKImageLoaderWithBlending:
         return {
             "required": {
                 "directory_path": ("STRING", {"default": "", "placeholder": "Directory path"}),
-                "sequence_frames": ("INT", {"default": 81, "min": 1, "max": 10000}),
+                "auto_detect_sequences": ("BOOLEAN", {"default": False}),
+                "sequence_frames": ("INT", {"default": 81, "min": 0, "max": 10000}),
                 "overlap_frames": ("INT", {"default": 5, "min": 1, "max": 20}),
                 "file_pattern": ("STRING", {"default": "*.png"}),
             }
@@ -36,9 +37,28 @@ class K3NKImageLoaderWithBlending:
     def smootherstep_blend(self, frame1, frame2, alpha):
         smooth_alpha = alpha * alpha * alpha * (alpha * (alpha * 6.0 - 15.0) + 10.0)
         return frame1 * (1.0 - smooth_alpha) + frame2 * smooth_alpha
-    
-    def load_and_blend_images(self, directory_path, sequence_frames=81, 
-                              overlap_frames=4, file_pattern="*.png"):
+        
+    def load_and_blend_images(self, directory_path, auto_detect_sequences=False,
+                              sequence_frames=81, overlap_frames=5, file_pattern="*.png"):
+        
+        # Auto-detectar sequence_frames basado en número de archivos .latent
+        if auto_detect_sequences:
+            # Contar archivos .latent
+            latent_files = glob.glob(os.path.join(directory_path, "*.latent"))
+            num_latents = len(latent_files)
+            
+            if num_latents > 0:
+                # Contar PNGs
+                png_files = glob.glob(os.path.join(directory_path, file_pattern))
+                num_pngs = len(png_files)
+                
+                if num_pngs > 0:
+                    sequence_frames = num_pngs // num_latents
+                    print(f"🔍 Auto-detected: {num_pngs} PNGs ÷ {num_latents} .latent files = {sequence_frames} frames per sequence")
+                else:
+                    print(f"⚠️ No PNG files found, using manual sequence_frames: {sequence_frames}")
+            else:
+                print(f"⚠️ No .latent files found, using manual sequence_frames: {sequence_frames}")
         
         search_pattern = os.path.join(directory_path, file_pattern)
         all_files = glob.glob(search_pattern)
