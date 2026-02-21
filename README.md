@@ -1,9 +1,16 @@
-# K3NK Image Loader with Blending
+# K3NK ComfyUI Nodes
+
+A collection of ComfyUI nodes for advanced video workflows and latent management.
+
+---
+
+## K3NK Image Loader with Blending
+
 Advanced ComfyUI node for loading image sequences with intelligent frame blending for seamless video transitions.
 
 This node is specifically designed for **multi-sequence video workflows**, automatically blending overlapping frames between sequences to create smooth transitions without visible cuts. Uses **smootherstep interpolation** for professional-grade blending quality.
 
-## Features
+### Features
 - **Intelligent sequence detection**: Automatically calculates complete sequences and remaining frames
 - **Smootherstep blending**: Professional non-linear interpolation eliminates ghosting artifacts
 - **Interpolation-aware**: Automatically scales overlap for frame-interpolated sequences (RIFE, etc.)
@@ -13,32 +20,32 @@ This node is specifically designed for **multi-sequence video workflows**, autom
 - **Frame stride compatibility**: Works seamlessly with interpolated sequences (2x, 4x, etc.)
 - **Debug output**: Detailed console logging for monitoring blend operations
 
-## Key Concepts
+### Key Concepts
 
-### Sequence-Based Processing
+#### Sequence-Based Processing
 The node divides your image directory into sequences of N frames (e.g., 81 frames per sequence). When you have multiple sequences, it automatically blends the overlapping frames at sequence boundaries to create smooth transitions.
 
-### Smootherstep Blending Algorithm
+#### Smootherstep Blending Algorithm
 Unlike basic linear blending, this node uses **smootherstep** (quintic hermite interpolation):
 - **S-curve transition**: Slow at start/end, fast in middle
 - **Eliminates ghosting**: Especially crucial with RIFE ensemble interpolation
 - **Professional quality**: Industry-standard method for video crossfades
 - **Handles micro-variations**: Compensates for interpolation artifacts
 
-### Frame Blending Mechanism
+#### Frame Blending Mechanism
 - **Overlap frames**: The last N frames of one sequence blend with the first N frames of the next
 - **Smootherstep interpolation**: Uses quintic curve for natural transitions
 - **Frame replacement**: Blended frames replace the original overlapping frames (no duplication)
 - **Incomplete sequences**: Automatically handles leftover frames with adaptive blending
 
-### Output Frame Count
+#### Output Frame Count
 **Important**: The output will have FEWER frames than input due to blending:
 - Input: 162 frames (2 sequences of 81)
 - Overlap: 5 frames
 - Output: 162 - 5 = **157 frames** (blending replaces, doesn't add)
 - Formula: `total_frames - (overlap_frames × number_of_transitions)`
 
-## Inputs
+### Inputs
 | Name | Type | Description |
 |------|------|-------------|
 | `directory_path` | STRING | Path to folder containing image sequence |
@@ -46,14 +53,14 @@ Unlike basic linear blending, this node uses **smootherstep** (quintic hermite i
 | `overlap_frames` | INT | Number of frames to blend at sequence boundaries (1-20, default: 5) |
 | `file_pattern` | STRING | Glob pattern for image files (default: *.png) |
 
-## Outputs
+### Outputs
 | Name | Type | Description |
 |------|------|-------------|
 | `images` | IMAGE | Blended image tensor in format `[total_frames, H, W, 3]` for ComfyUI processing |
 
-## Usage Examples
+### Usage Examples
 
-### Example 1: Standard Two-Sequence Workflow (No Interpolation)
+#### Example 1: Standard Two-Sequence Workflow (No Interpolation)
 **Scenario**: 162 frames total (2 sequences of 81 frames each)
 
 Settings:
@@ -69,7 +76,7 @@ Processing:
   - Add: Remaining frames 86-161
 - **Output**: 157 frames total (162 - 5 blended frames)
 
-### Example 2: Two-Sequence Workflow with 2× Interpolation (RIFE)
+#### Example 2: Two-Sequence Workflow with 2× Interpolation (RIFE)
 **Scenario**: 324 frames total (2 sequences × 162 interpolated frames)
 
 Settings:
@@ -86,7 +93,7 @@ Processing:
 
 **Critical**: When using RIFE with `ensemble=true`, the 10-frame overlap with smootherstep is essential to prevent visible ghosting.
 
-### Example 3: Incomplete Final Sequence
+#### Example 3: Incomplete Final Sequence
 **Scenario**: 161 frames total (81 + 80 frames)
 
 Settings:
@@ -103,7 +110,7 @@ Processing:
   - Add: Remaining frames 86-160
 - **Output**: 156 frames total
 
-### Example 4: Three Sequences with Interpolation
+#### Example 4: Three Sequences with Interpolation
 **Scenario**: 486 frames (3 sequences × 162 interpolated frames)
 
 Settings:
@@ -117,7 +124,7 @@ Processing:
 - Total blended frames: 10 × 2 = 20 frames
 - **Output**: 486 - 20 = **466 frames**
 
-### Example 5: Single Sequence (No Blending)
+#### Example 5: Single Sequence (No Blending)
 **Scenario**: 81 frames total
 
 Settings:
@@ -131,7 +138,7 @@ Processing:
 - No blending needed
 - **Output**: 81 frames (unchanged)
 
-## Interpolation Guidelines
+### Interpolation Guidelines
 
 When working with interpolated sequences (RIFE, FILM, etc.), **always scale the overlap proportionally**:
 
@@ -148,7 +155,7 @@ When working with interpolated sequences (RIFE, FILM, etc.), **always scale the 
 - Overlap must cover ALL duplicated frames for smooth transitions
 - Smootherstep handles micro-variations from RIFE ensemble mode
 
-## File Naming Convention
+### File Naming Convention
 
 The node extracts numeric sequences from filenames for proper ordering:
 - `frame_0001.png` → number `1`
@@ -157,7 +164,7 @@ The node extracts numeric sequences from filenames for proper ordering:
 
 Files are sorted by the **last number found** in the filename.
 
-## Supported File Formats
+### Supported File Formats
 
 Default pattern `*.png` includes PNG files. Customize with:
 - `*.jpg` - JPEG files only
@@ -167,9 +174,9 @@ Default pattern `*.png` includes PNG files. Customize with:
 
 The node automatically converts all images to RGB and normalizes to float32 [0-1] range.
 
-## Technical Details
+### Technical Details
 
-### Smootherstep Blending Algorithm
+#### Smootherstep Blending Algorithm
 ```python
 smooth_alpha = alpha³ × (alpha × (alpha × 6 - 15) + 10)
 blended_frame = frame1 × (1 - smooth_alpha) + frame2 × smooth_alpha
@@ -202,7 +209,7 @@ blended_frame = frame1 × (1 - smooth_alpha) + frame2 × smooth_alpha
 - Example: 500 frames at 1280×768 = ~4.7GB RAM
 - Consider batch processing for very long sequences
 
-## Console Output Example
+### Console Output Example
 ```
 📁 Found 324 images
 ✅ Loaded 324 images
@@ -225,89 +232,148 @@ blended_frame = frame1 × (1 - smooth_alpha) + frame2 × smooth_alpha
    10/10 first frames were modified
 ```
 
-## Best Practices
+### Best Practices
 
-### Sequence Planning
+#### Sequence Planning
 - Plan your renders in multiples of `sequence_frames` when possible
 - Account for lost frames in blending: `output = input - (overlap × transitions)`
 - For 3 sequences: expect to lose `overlap_frames × 2` frames total
 
-### Overlap Selection
+#### Overlap Selection
 - **Without interpolation**: 5 frames (default, handles 5 duplicated frames)
 - **With 2× interpolation**: 10 frames (handles 10 duplicated frames)
 - **With 4× interpolation**: 20 frames (handles 20 duplicated frames)
 - **General rule**: Scale overlap with interpolation factor
 
-### Interpolation-Specific Tips
+#### Interpolation-Specific Tips
 - **RIFE with ensemble=true**: ALWAYS use smootherstep (this node's default)
 - **Duplicated frames**: Video models duplicate last 5 frames to prevent color shift
 - **After interpolation**: These duplicates become 10, 20, etc. frames
 - **Overlap must cover duplicates**: Otherwise you'll see hard cuts
 
-### Quality Tips
+#### Quality Tips
 - Use consistent lighting across sequences for better blending
 - Avoid drastic scene changes at sequence boundaries
 - Smootherstep compensates for RIFE ensemble micro-variations
 - Higher overlap values needed for interpolated content
 - Test with a small sequence first to verify settings
 
-### Workflow Integration
+#### Workflow Integration
 - Use with RIFE/FILM interpolation nodes for smooth slow-motion
 - Pair with VHS Video Combine for final video output
 - Compatible with any ComfyUI node accepting IMAGE input
 - Works seamlessly with AnimateDiff, Wan Video, and other video models
 - Essential for multi-batch WanVideoWrapper workflows
 
-## Troubleshooting
+### Troubleshooting
 
-### Ghosting visible in transitions (interpolated sequences)
+#### Ghosting visible in transitions (interpolated sequences)
 - **Cause**: RIFE ensemble mode creates micro-variations between frames
 - **Solution**: Already solved with smootherstep - ensure you're using latest version
 - **Verify**: Check code uses `smooth_alpha = alpha * alpha * alpha * (alpha * (alpha * 6.0 - 15.0) + 10.0)`
 - **If persists**: Reduce overlap by 2-4 frames (e.g., 10 → 6-8)
 
-### Hard cuts visible between sequences
+#### Hard cuts visible between sequences
 - **Cause**: Overlap doesn't cover all duplicated frames
 - **Solution**: Increase overlap to match interpolation factor (5 → 10 for 2×)
 - **Verify**: Check that `overlap_frames = original_overlap × interpolation_factor`
 
-### No blending visible in output
+#### No blending visible in output
 - Check console for "X/10 first frames were modified"
 - Verify you have multiple sequences (more than `sequence_frames` total)
 - Ensure `overlap_frames > 0`
 - Check that images actually differ at sequence boundaries
 
-### Unexpected output frame count
+#### Unexpected output frame count
 - Remember: blending REPLACES frames, doesn't add them
 - Formula: `total_input - (overlap_frames × number_of_transitions)`
 - Example: 486 frames (3 sequences) with 10 overlap = 486 - 20 = 466 output
 
-### "No files found" error
+#### "No files found" error
 - Verify `directory_path` is correct and absolute
 - Check `file_pattern` matches your files
 - Ensure files have proper extensions
 - Verify file permissions
 
-### Images in wrong order
+#### Images in wrong order
 - Check filename numbering is sequential
 - The node uses the LAST number found in each filename
 - Rename files if necessary: `frame_001.png`, `frame_002.png`, etc.
 
-### Out of memory
+#### Out of memory
 - Reduce total frame count
 - Process in smaller batches
 - Lower image resolution before processing
 - Use a machine with more RAM
 
-## Performance Notes
-
+### Performance Notes
 - **Loading speed**: ~0.1-0.5s per image depending on resolution and disk speed
 - **Blending speed**: Nearly instant (GPU tensor operations)
 - **Smootherstep overhead**: Negligible compared to linear
 - **Bottleneck**: Usually file I/O, not computation
 - **Optimization**: Use SSD storage for faster loading
 
+---
+
+## Save Latent (Pass-Through)
+
+A utility node for saving latents to disk mid-workflow **without interrupting the pipeline**. The latent passes through unchanged, making it ideal for checkpointing long generation processes.
+
+### Features
+- **Pass-through design**: Outputs the input latent unmodified — workflow continues normally
+- **Absolute path support**: `filename_prefix` can include subdirectories relative to ComfyUI's output folder
+- **Auto-incrementing filenames**: Automatically finds the next available `_XXXXX_` counter to avoid overwriting
+- **Safetensors format**: Saves as `.latent` using the `safetensors` format, including tensor metadata
+- **Auto directory creation**: Creates subdirectories automatically if they don't exist
+
+### Inputs
+| Name | Type | Description |
+|------|------|-------------|
+| `samples` | LATENT | The latent to save and pass through |
+| `filename_prefix` | STRING | Filename prefix, optionally including subdirectory (e.g. `subdir/mylatent`) |
+
+### Outputs
+| Name | Type | Description |
+|------|------|-------------|
+| `samples` | LATENT | The original latent, unchanged |
+
+### File Naming
+
+Files are saved as `{prefix}_{counter:05d}_.latent` inside ComfyUI's output directory. The counter auto-increments to avoid collisions:
+
+```
+outputs/
+└── mylatent_00000_.latent
+└── mylatent_00001_.latent
+```
+
+With a subdirectory prefix (`subdir/mylatent`):
+```
+outputs/
+└── subdir/
+    └── mylatent_00000_.latent
+```
+
+### Usage Example
+
+Insert this node anywhere in your latent pipeline to save a checkpoint:
+
+```
+[KSampler] → [Save Latent (Pass-Through)] → [VAE Decode] → [Save Image]
+```
+
+The latent is saved to disk and the workflow continues without interruption.
+
+### Use Cases
+- **Checkpointing**: Save intermediate latents during multi-stage workflows
+- **Debugging**: Inspect latents at different pipeline stages
+- **Reuse**: Save latents to reload later, skipping expensive re-generation
+- **Multi-batch WanVideo**: Persist latents between batches for continuation workflows
+
+---
+
 ## Version History
+- **v1.4**: Added Save Latent (Pass-Through) node for mid-workflow latent checkpointing
 - **v1.3**: Switched to smootherstep blending, updated defaults (5 overlap), added interpolation guidelines
 - **v1.2**: Improved incomplete sequence handling with adaptive blending
 - **v1.1**: Fixed edge cases with remaining frames, enhanced debug output
@@ -328,4 +394,4 @@ MIT License - Free to use and modify
 
 ---
 
-**Note**: This node is optimized for multi-sequence video generation workflows where smooth transitions between generated segments are critical. The smootherstep algorithm is specifically tuned to handle RIFE ensemble interpolation artifacts. For single-sequence workflows or when transitions aren't needed, consider using standard image loader nodes.
+**Note**: This node pack is optimized for multi-sequence video generation workflows where smooth transitions between generated segments are critical. The smootherstep algorithm is specifically tuned to handle RIFE ensemble interpolation artifacts. For single-sequence workflows or when transitions aren't needed, consider using standard image loader nodes.
