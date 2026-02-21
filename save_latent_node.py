@@ -1,5 +1,4 @@
 import os
-import re
 import folder_paths
 import torch
 from safetensors.torch import save_file
@@ -12,33 +11,28 @@ class SaveLatentAbsolutePath:
     RETURN_NAMES = ("samples",)
     OUTPUT_NODE = True
 
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "samples": ("LATENT",),
-                "filename_prefix": ("STRING", {"default": ""}),
+                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
             }
         }
 
     def save(self, samples, filename_prefix):
-        output_dir = folder_paths.get_output_directory()
+        filename_prefix += self.prefix_append
 
-        # Separar directorio y prefijo del filename
-        prefix_path = os.path.join(output_dir, filename_prefix)
-        directory = os.path.dirname(prefix_path)
-        prefix = os.path.basename(prefix_path)
+        full_output_folder, filename, counter, subfolder, filename_prefix = \
+            folder_paths.get_save_image_path(filename_prefix, self.output_dir)
 
-        os.makedirs(directory, exist_ok=True)
-
-        # Buscar el siguiente número disponible
-        counter = 0
-        while True:
-            filename = f"{prefix}_{counter:05d}_.latent"
-            full_path = os.path.join(directory, filename)
-            if not os.path.exists(full_path):
-                break
-            counter += 1
+        file = f"{filename}_{counter:05d}_.latent"
+        full_path = os.path.join(full_output_folder, file)
 
         tensors = {}
         metadata = {}
