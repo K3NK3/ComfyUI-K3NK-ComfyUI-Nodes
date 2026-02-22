@@ -4,7 +4,7 @@ import torch
 from safetensors.torch import save_file
 
 
-class SaveLatentAbsolutePath:
+class SaveLatentPassThrought:
     CATEGORY = "K3NK/latent"
     FUNCTION = "save"
     RETURN_TYPES = ("LATENT",)
@@ -47,9 +47,9 @@ class SaveLatentAbsolutePath:
 
 
 NODE_CLASS_MAPPINGS = {
-    "SaveLatentAbsolutePath": SaveLatentAbsolutePath,
+    "SaveLatentPassThrought": SaveLatentPassThrought,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SaveLatentAbsolutePath": "Save Latent (Pass-Through)",
+    "SaveLatentPassThrought": "Save Latent (Pass-Through)",
 }
