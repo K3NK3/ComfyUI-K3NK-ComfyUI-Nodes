@@ -51,5 +51,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SaveLatentPassThrought": "Save Latent (Pass-Through)",
+    "SaveLatentPassThrought": "K3NK Save Latent (Pass-Through)",
 }
