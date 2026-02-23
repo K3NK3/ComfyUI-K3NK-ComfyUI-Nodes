@@ -315,6 +315,44 @@ blended_frame = frame1 × (1 - smooth_alpha) + frame2 × smooth_alpha
 
 ---
 
+## K3NK Find Nearest Bucket
+
+Utility node that finds the nearest resolution bucket for a given image, matching the bucketing logic used by video generation models like FramePack/HunyuanVideo.
+
+Useful for ensuring your image dimensions are compatible with the model before encoding, avoiding aspect ratio mismatches or padding artifacts.
+
+### Features
+- **Model-compatible resolutions**: Uses the same bucketing logic as FramePack/HunyuanVideo
+- **Aspect ratio preservation**: Finds the closest bucket while respecting the original proportions
+- **Lightweight**: Reads image dimensions only, no pixel processing
+
+### Inputs
+| Name | Type | Description |
+|------|------|-------------|
+| `image` | IMAGE | Input image to analyze |
+| `base_resolution` | INT | Target base resolution in pixels (default: 640, min: 64, max: 2048, step: 16) |
+
+### Outputs
+| Name | Type | Description |
+|------|------|-------------|
+| `width` | INT | Nearest bucket width |
+| `height` | INT | Nearest bucket height |
+
+### Usage Example
+
+Connect this node between your image loader and VAE encoder to ensure compatible dimensions:
+
+```
+[Load Image] → [K3NK Find Nearest Bucket] → [Image Resize] → [VAE Encode]
+```
+
+### Notes
+- Requires `bucket_tools` from FramePackWrapper to be available in your ComfyUI installation
+- Output dimensions can be fed directly into any resize or crop node
+- Default `base_resolution: 640` matches FramePack's recommended setting
+
+---
+
 ## Save Latent (Pass-Through)
 
 A utility node for saving latents to disk mid-workflow **without interrupting the pipeline**. The latent passes through unchanged, making it ideal for checkpointing long generation processes.
@@ -373,6 +411,7 @@ The latent is saved to disk and the workflow continues without interruption.
 ---
 
 ## Version History
+- **v1.5**: Added K3NK Find Nearest Bucket node for model-compatible resolution matching
 - **v1.4**: Added Save Latent (Pass-Through) node for mid-workflow latent checkpointing
 - **v1.3**: Switched to smootherstep blending, updated defaults (5 overlap), added interpolation guidelines
 - **v1.2**: Improved incomplete sequence handling with adaptive blending
@@ -383,6 +422,7 @@ The latent is saved to disk and the workflow continues without interruption.
 
 Built for ComfyUI video workflows. Designed to work seamlessly with:
 - WanVideoWrapper (multi-batch workflows)
+- FramePackWrapper (bucketing, LoRA loading)
 - RIFE interpolation (especially ensemble mode)
 - AnimateDiff
 - VHS Video Combine
