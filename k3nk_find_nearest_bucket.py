@@ -3,14 +3,14 @@ import math
 
 def find_nearest_bucket(h, w, resolution=640):
     """
-    Encuentra el tamanio de bucket mas cercano manteniendo el aspect ratio.
-    Compatible con Wan 2.x, FramePack y cualquier modelo que use buckets de resolucion.
-    
-    Logica: misma que FramePack/diffusers_helper/bucket_tools.py
-    - Calcula area objetivo basada en resolution
-    - Busca H y W multiplos de 32 que mantengan el aspect ratio y se acerquen al area objetivo
+    Finds the nearest resolution bucket while preserving aspect ratio.
+    Compatible with Wan 2.x, FramePack and any model using resolution buckets.
+
+    Logic mirrors FramePack/diffusers_helper/bucket_tools.py:
+    - Computes target pixel area from resolution
+    - Searches for H and W multiples of 32 that preserve aspect ratio and are closest to target area
     """
-    # Area objetivo en pixeles
+    # Target pixel area
     target_pixels = resolution * resolution
 
     aspect = w / h
@@ -40,7 +40,7 @@ class K3NKFindNearestBucket:
             "required": {
                 "image": ("IMAGE",),
                 "base_resolution": ("INT", {"default": 640, "min": 64, "max": 2048, "step": 32,
-                                            "tooltip": "Resolucion base. Usa 640 para 480p, 720 para 720p, 1088 para Wan 2.x HD"}),
+                                            "tooltip": "Base resolution. Use 640 for 480p, 720 for 720p, 1088 for Wan 2.x HD"}),
             }
         }
 
