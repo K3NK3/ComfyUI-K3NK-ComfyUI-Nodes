@@ -315,44 +315,6 @@ blended_frame = frame1 × (1 - smooth_alpha) + frame2 × smooth_alpha
 
 ---
 
-## K3NK Find Nearest Bucket
-
-Utility node that finds the nearest resolution bucket for a given image, matching the bucketing logic used by video generation models like FramePack/HunyuanVideo.
-
-Useful for ensuring your image dimensions are compatible with the model before encoding, avoiding aspect ratio mismatches or padding artifacts.
-
-### Features
-- **Model-compatible resolutions**: Uses the same bucketing logic as FramePack/HunyuanVideo
-- **Aspect ratio preservation**: Finds the closest bucket while respecting the original proportions
-- **Lightweight**: Reads image dimensions only, no pixel processing
-
-### Inputs
-| Name | Type | Description |
-|------|------|-------------|
-| `image` | IMAGE | Input image to analyze |
-| `base_resolution` | INT | Target base resolution in pixels (default: 640, min: 64, max: 2048, step: 16) |
-
-### Outputs
-| Name | Type | Description |
-|------|------|-------------|
-| `width` | INT | Nearest bucket width |
-| `height` | INT | Nearest bucket height |
-
-### Usage Example
-
-Connect this node between your image loader and VAE encoder to ensure compatible dimensions:
-
-```
-[Load Image] → [K3NK Find Nearest Bucket] → [Image Resize] → [VAE Encode]
-```
-
-### Notes
-- Requires `bucket_tools` from FramePackWrapper to be available in your ComfyUI installation
-- Output dimensions can be fed directly into any resize or crop node
-- Default `base_resolution: 640` matches FramePack's recommended setting
-
----
-
 ## Save Latent (Pass-Through)
 
 A utility node for saving latents to disk mid-workflow **without interrupting the pipeline**. The latent passes through unchanged, making it ideal for checkpointing long generation processes.
@@ -410,7 +372,46 @@ The latent is saved to disk and the workflow continues without interruption.
 
 ---
 
+## K3NK Image Overlay
+
+Memory-efficient image overlay node, functionally identical to the TSC Image Overlay from efficiency-nodes-comfyui but without PIL conversions, significantly reducing peak memory usage on large batches.
+
+### Features
+- **No PIL conversions**: Compositing done entirely in PyTorch — no tensor→PIL→tensor round-trips per frame
+- **Full parity with TSC Image Overlay**: Same inputs, same resize modes, same mask inversion logic, same opacity scale (0–100)
+- **Batch-efficient**: Overlay and alpha are computed once and reused across all frames
+- **Explicit memory cleanup**: Intermediate tensors freed immediately after use
+
+### Inputs
+| Name | Type | Description |
+|------|------|-------------|
+| `base_image` | IMAGE | Background image batch |
+| `overlay_image` | IMAGE | Image to overlay |
+| `overlay_resize` | ENUM | None / Fit / Resize by rescale_factor / Resize to width & heigth |
+| `resize_method` | ENUM | nearest-exact / bilinear / area |
+| `rescale_factor` | FLOAT | Scale multiplier when using Resize by rescale_factor (default: 1.0) |
+| `width` | INT | Target width when using Resize to width & heigth |
+| `height` | INT | Target height when using Resize to width & heigth |
+| `x_offset` | INT | Horizontal position of overlay on base image |
+| `y_offset` | INT | Vertical position of overlay on base image |
+| `rotation` | INT | Rotation in degrees (-180 to 180), canvas expands to fit |
+| `opacity` | FLOAT | Opacity 0–100 (0 = fully visible, 100 = invisible) |
+| `optional_mask` | MASK | Optional mask — white=transparent, black=opaque (matches TSC original behavior) |
+
+### Outputs
+| Name | Type | Description |
+|------|------|-------------|
+| `image` | IMAGE | Composited image batch |
+
+### Notes
+- Opacity scale matches the original: 0 = fully opaque, 100 = fully transparent
+- Mask is inverted to match TSC behavior: white areas of the mask become transparent
+- Uses `comfy.utils.common_upscale` for resizing, identical to the original
+
+---
+
 ## Version History
+- **v1.6**: Added K3NK Image Overlay, memory-efficient drop-in replacement for TSC Image Overlay
 - **v1.5**: Added K3NK Find Nearest Bucket node for model-compatible resolution matching
 - **v1.4**: Added Save Latent (Pass-Through) node for mid-workflow latent checkpointing
 - **v1.3**: Switched to smootherstep blending, updated defaults (5 overlap), added interpolation guidelines
@@ -422,7 +423,6 @@ The latent is saved to disk and the workflow continues without interruption.
 
 Built for ComfyUI video workflows. Designed to work seamlessly with:
 - WanVideoWrapper (multi-batch workflows)
-- FramePackWrapper (bucketing, LoRA loading)
 - RIFE interpolation (especially ensemble mode)
 - AnimateDiff
 - VHS Video Combine
