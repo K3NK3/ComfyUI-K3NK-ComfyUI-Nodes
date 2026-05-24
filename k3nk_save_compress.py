@@ -142,16 +142,6 @@ def _oxipng(data, level):
     except Exception as e:
         print(f"[K3NK Save] oxipng error: {e}"); return data
 
-# ── Filename helper ────────────────────────────────────────────────────────────
-def _next_filename(folder: Path, base: str, ext: str) -> Path:
-    folder.mkdir(parents=True, exist_ok=True)
-    nums = []
-    for p in folder.glob(f"{base}_*{ext}"):
-        m = re.search(r"_(\d+)_", p.name)
-        if m: nums.append(int(m.group(1)))
-    n = max(nums) + 1 if nums else 0
-    return folder / f"{base}_{n:05d}_{ext}"
-
 # ── Node ───────────────────────────────────────────────────────────────────────
 class K3NKSaveCompress:
 
@@ -188,16 +178,15 @@ class K3NKSaveCompress:
              prompt=None, extra_pnginfo=None):
 
         import folder_paths
-        output_dir  = Path(folder_paths.get_output_directory())
-        prefix_path = Path(filename_prefix)
-        save_folder = output_dir / prefix_path.parent
-        base_name   = prefix_path.name or "image"
-        speed_val   = int(pngquant_speed.split(" ")[0])
-        ext_map     = {"PNG": ".png", "WEBP": ".webp", "JPEG": ".jpg"}
-        ext         = ext_map[format]
-        saved       = []
+        speed_val = int(pngquant_speed.split(" ")[0])
+        ext_map   = {"PNG": ".png", "WEBP": ".webp", "JPEG": ".jpg"}
+        ext       = ext_map[format]
+        saved     = []
 
-        for img_tensor in images:
+        # Usa el mismo helper que Save Image nativo — maneja subfolder, contador, etc.
+        full_output_folder, filename, counter, subfolder, filename_prefix_out =             folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 512, 512)
+
+        for batch_idx, img_tensor in enumerate(images):
             arr = (img_tensor.cpu().numpy() * 255).clip(0, 255).astype("uint8")
             pil = Image.fromarray(arr)
 
@@ -209,7 +198,7 @@ class K3NKSaveCompress:
             if prompt:
                 pnginfo.add_text("prompt", json.dumps(prompt))
 
-            out_path = _next_filename(save_folder, base_name, ext)
+            out_path = Path(full_output_folder) / f"{filename}_{counter + batch_idx:05}_{ext}"
 
             if format == "PNG":
                 buf = io.BytesIO()
@@ -237,15 +226,11 @@ class K3NKSaveCompress:
                 if pil.mode == "RGBA": pil = pil.convert("RGB")
                 pil.save(str(out_path), format="JPEG", quality=lossy_quality, optimize=True)
 
-            saved.append(str(out_path))
+            saved.append({"filename": out_path.name, "subfolder": subfolder, "type": "output"})
             size_kb = out_path.stat().st_size // 1024
             print(f"[K3NK Save] ✔ {out_path.name}  ({size_kb} KB)")
 
-        return {"ui": {"images": [
-            {"filename": Path(p).name,
-             "subfolder": str(prefix_path.parent),
-             "type": "output"} for p in saved
-        ]}}
+        return {"ui": {"images": saved}}
 
 
 NODE_CLASS_MAPPINGS        = {"K3NKSaveCompress": K3NKSaveCompress}
