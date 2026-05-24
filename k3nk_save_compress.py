@@ -178,6 +178,16 @@ class K3NKSaveCompress:
              prompt=None, extra_pnginfo=None):
 
         import folder_paths
+        from datetime import datetime
+
+        # Expande variables %date:formato% igual que Save Image nativo
+        now = datetime.now()
+        filename_prefix = re.sub(r'%date:([^%]+)%',
+            lambda m: now.strftime(m.group(1)
+                .replace("yyyy", "%Y").replace("MM", "%m").replace("dd", "%d")
+                .replace("hh", "%H").replace("mm", "%M").replace("ss", "%S")),
+            filename_prefix)
+
         speed_val = int(pngquant_speed.split(" ")[0])
         ext_map   = {"PNG": ".png", "WEBP": ".webp", "JPEG": ".jpg"}
         ext       = ext_map[format]
