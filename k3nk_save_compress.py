@@ -1,10 +1,6 @@
 """
-K3NK Save & Compress
-Saves images from ComfyUI with optional compression via pngquant + oxipng.
-Preserves ComfyUI metadata chunks (tEXt/iTXt/zTXt) so workflows survive drag & drop.
-
-Binaries are auto-downloaded from your GitHub Releases on first use.
-To update: upload new .exe files to a GitHub Release tagged 'binaries'.
+K3NK Save & Compress - ULTRA ROBUSTO V3
+Manejo CORRECTO de tensores con múltiples canales
 """
 
 import os, struct, zlib, subprocess, tempfile, io, shutil, re, sys, json, platform
@@ -22,9 +18,8 @@ _BIN_DIR.mkdir(exist_ok=True)
 # ── Auto-download config ───────────────────────────────────────────────────────
 GITHUB_USER    = "K3NK3"
 GITHUB_REPO    = "ComfyUI-K3NK-ComfyUI-Nodes"
-GITHUB_TAG     = "binaries"   # your release tag
+GITHUB_TAG     = "binaries"
 
-# Maps: binary stem → filename in your GitHub Release assets
 _IS_WIN   = platform.system() == "Windows"
 _BINARIES = {
     "pngquant": "pngquant.exe" if _IS_WIN else "pngquant",
@@ -32,7 +27,6 @@ _BINARIES = {
 }
 
 def _download_binary(name: str, filename: str) -> str:
-    """Download binary from GitHub Release if not present. Returns path or ''."""
     dest = _BIN_DIR / filename
     if dest.exists():
         return str(dest)
@@ -62,7 +56,6 @@ def _get_bin(name: str) -> str:
         return str(dest)
     return _download_binary(name, filename)
 
-# Lazy-load on first use
 _PNGQUANT = None
 _OXIPNG   = None
 
@@ -142,6 +135,128 @@ def _oxipng(data, level):
     except Exception as e:
         print(f"[K3NK Save] oxipng error: {e}"); return data
 
+# ── FUNCIÓN MEJORADA PARA NORMALIZAR TENSORES CON MÚLTIPLES CANALES ──────────
+def tensor_to_pil(tensor):
+    """
+    Convierte CUALQUIER tensor de imagen a PIL Image.
+    AHORA con manejo CORRECTO de tensores con múltiples canales (>3)
+    """
+    # Convertir a numpy si es tensor
+    if hasattr(tensor, 'cpu'):
+        arr = tensor.cpu().numpy()
+    else:
+        arr = np.array(tensor)
+    
+    print(f"[DEBUG] Forma original del tensor: {arr.shape}")
+    print(f"[DEBUG] Tipo de dato: {arr.dtype}")
+    print(f"[DEBUG] Rango de valores: {arr.min():.4f} a {arr.max():.4f}")
+    
+    # Caso 1: Si es 4D (batch, height, width, channels)
+    if len(arr.shape) == 4:
+        # Quitar batch
+        arr = arr[0]
+        print(f"[DEBUG] Después de quitar batch: {arr.shape}")
+    
+    # Caso 2: Si es 4D pero en formato (batch, channels, height, width)
+    if len(arr.shape) == 4 and arr.shape[0] in [1, 3, 4, 12]:
+        # Intentar detectar formato
+        if arr.shape[3] not in [1, 3, 4, 12]:  # Si el último no es canal
+            arr = arr[0]  # Quitar batch
+            if arr.shape[0] in [1, 3, 4, 12]:
+                arr = np.transpose(arr, (1, 2, 0))
+                print(f"[DEBUG] Transpuesto (channels primero): {arr.shape}")
+    
+    # Caso 3: Si es 3D y los canales están primero
+    if len(arr.shape) == 3 and arr.shape[0] in [1, 3, 4, 12]:
+        if arr.shape[2] not in [1, 3, 4, 12]:
+            arr = np.transpose(arr, (1, 2, 0))
+            print(f"[DEBUG] Transpuesto (channels primero): {arr.shape}")
+    
+    # ─── MANEJO DE MÚLTIPLES CANALES ───
+    # Si tenemos más de 4 canales, probablemente son latents o features
+    if len(arr.shape) == 3 and arr.shape[2] > 4:
+        print(f"[WARNING] ¡El tensor tiene {arr.shape[2]} canales!")
+        print(f"[INFO] Intentando convertir a RGB usando diferentes métodos...")
+        
+        # Método 1: Tomar los primeros 3 canales como RGB
+        rgb1 = arr[:, :, :3]
+        
+        # Método 2: Tomar canales específicos (asumiendo que los últimos 3 son RGB)
+        rgb2 = arr[:, :, -3:]
+        
+        # Método 3: Promediar todos los canales para escala de grises
+        gray = np.mean(arr, axis=2)
+        gray = np.stack([gray, gray, gray], axis=2)
+        
+        # Método 4: Normalizar y usar los primeros 3 canales
+        rgb3 = arr[:, :, :3]
+        rgb3 = (rgb3 - rgb3.min()) / (rgb3.max() - rgb3.min() + 1e-8)
+        
+        # Decidir cuál usar (probamos diferentes estrategias)
+        # Si los valores están en [0,1] usar rgb1 directamente
+        if arr.min() >= 0 and arr.max() <= 1:
+            print(f"[INFO] Usando primeros 3 canales como RGB (valores normalizados 0-1)")
+            arr = rgb1
+        else:
+            # Si los valores no están normalizados, usar el método 4
+            print(f"[INFO] Usando primeros 3 canales normalizados")
+            arr = rgb3
+        
+        print(f"[DEBUG] Canales reducidos a: {arr.shape}")
+    
+    # Si tiene 4 canales (RGBA), convertir a RGB
+    if len(arr.shape) == 3 and arr.shape[2] == 4:
+        print(f"[INFO] Tensor RGBA, convirtiendo a RGB")
+        # Si es float, asumir que alpha es el último canal
+        if arr.dtype == np.float32 or arr.dtype == np.float64:
+            arr = arr[:, :, :3]  # Quitar alpha
+        else:
+            # Si es uint8, quitar alpha
+            arr = arr[:, :, :3]
+    
+    # Si tiene 3 canales, asumir RGB
+    if len(arr.shape) == 3 and arr.shape[2] == 3:
+        print(f"[INFO] Tensor RGB detectado")
+    
+    # Si tiene 1 canal (escala de grises)
+    if len(arr.shape) == 3 and arr.shape[2] == 1:
+        print(f"[INFO] Tensor escala de grises, convirtiendo a RGB")
+        arr = np.concatenate([arr, arr, arr], axis=2)
+    
+    # Si es 2D (height, width) - escala de grises
+    if len(arr.shape) == 2:
+        print(f"[INFO] Tensor 2D (escala de grises), convirtiendo a RGB")
+        arr = np.stack([arr, arr, arr], axis=2)
+    
+    # Normalizar valores a 0-255
+    if arr.dtype == np.float32 or arr.dtype == np.float64:
+        if arr.max() > 1.0 or arr.min() < 0:
+            # Si no está en [0,1], normalizar
+            arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
+        arr = (arr * 255).clip(0, 255)
+        arr = arr.astype(np.uint8)
+    elif arr.dtype == np.uint16:
+        arr = (arr / 65535 * 255).astype(np.uint8)
+    elif arr.dtype == np.int16 or arr.dtype == np.int32:
+        arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(np.uint8)
+    elif arr.dtype == np.uint8:
+        pass  # Ya está en el formato correcto
+    else:
+        # Cualquier otro tipo, normalizar
+        arr = ((arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255).astype(np.uint8)
+    
+    # Verificar dimensiones finales
+    if len(arr.shape) != 3 or arr.shape[2] not in [1, 3, 4]:
+        raise ValueError(f"Forma final inválida: {arr.shape}. Esperaba (height, width, 3) o (height, width, 4)")
+    
+    # Crear imagen PIL
+    if arr.shape[2] == 3:
+        return Image.fromarray(arr, 'RGB')
+    elif arr.shape[2] == 4:
+        return Image.fromarray(arr, 'RGBA')
+    else:
+        return Image.fromarray(arr[:, :, 0], 'L')
+
 # ── Node ───────────────────────────────────────────────────────────────────────
 class K3NKSaveCompress:
 
@@ -180,7 +295,7 @@ class K3NKSaveCompress:
         import folder_paths
         from datetime import datetime
 
-        # Expande variables %date:formato% igual que Save Image nativo
+        # Expande variables %date:formato%
         now = datetime.now()
         filename_prefix = re.sub(r'%date:([^%]+)%',
             lambda m: now.strftime(m.group(1)
@@ -193,52 +308,70 @@ class K3NKSaveCompress:
         ext       = ext_map[format]
         saved     = []
 
-        # Usa el mismo helper que Save Image nativo — maneja subfolder, contador, etc.
-        full_output_folder, filename, counter, subfolder, filename_prefix_out =             folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 512, 512)
+        full_output_folder, filename, counter, subfolder, filename_prefix_out = \
+            folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 512, 512)
 
-        for batch_idx, img_tensor in enumerate(images):
-            arr = (img_tensor.cpu().numpy() * 255).clip(0, 255).astype("uint8")
-            pil = Image.fromarray(arr)
+        # Si images no es una lista, convertirla en una
+        if not isinstance(images, (list, tuple)):
+            images = [images]
 
-            # Build PngInfo with ComfyUI metadata
-            pnginfo = PngInfo()
-            if extra_pnginfo:
-                for k, v in extra_pnginfo.items():
-                    pnginfo.add_text(k, json.dumps(v) if not isinstance(v, str) else v)
-            if prompt:
-                pnginfo.add_text("prompt", json.dumps(prompt))
+        for idx, img_tensor in enumerate(images):
+            try:
+                # Convertir el tensor a PIL usando nuestra función mágica
+                pil = tensor_to_pil(img_tensor)
+                print(f"[DEBUG] Imagen convertida: {pil.size}, modo: {pil.mode}")
+                
+                # Build PngInfo con metadatos
+                pnginfo = PngInfo()
+                if extra_pnginfo:
+                    for k, v in extra_pnginfo.items():
+                        pnginfo.add_text(k, json.dumps(v) if not isinstance(v, str) else v)
+                if prompt:
+                    pnginfo.add_text("prompt", json.dumps(prompt))
 
-            out_path = Path(full_output_folder) / f"{filename}_{counter + batch_idx:05}_{ext}"
+                out_path = Path(full_output_folder) / f"{filename}_{counter + idx:05}_{ext}"
 
-            if format == "PNG":
-                buf = io.BytesIO()
-                pil.save(buf, format="PNG", pnginfo=pnginfo, optimize=True, compress_level=9)
-                raw  = buf.getvalue()
-                meta = _extract_meta(raw)
+                if format == "PNG":
+                    # Guardar a buffer para manipular chunks
+                    buf = io.BytesIO()
+                    pil.save(buf, format="PNG", pnginfo=pnginfo, optimize=True, compress_level=9)
+                    raw  = buf.getvalue()
+                    meta = _extract_meta(raw)
 
-                if compression_mode == "lossless (oxipng)":
-                    o = _oxipng(raw, oxipng_level)
-                    if len(o) < len(raw): raw = o
+                    if compression_mode == "lossless (oxipng)":
+                        o = _oxipng(raw, oxipng_level)
+                        if len(o) < len(raw): raw = o
 
-                elif compression_mode == "lossy+lossless (pngquant+oxipng)":
-                    q = _pngquant(raw, quality_min, quality_max, speed_val)
-                    if len(q) < len(raw): raw = q
-                    o = _oxipng(raw, oxipng_level)
-                    if len(o) < len(raw): raw = o
+                    elif compression_mode == "lossy+lossless (pngquant+oxipng)":
+                        q = _pngquant(raw, quality_min, quality_max, speed_val)
+                        if len(q) < len(raw): raw = q
+                        o = _oxipng(raw, oxipng_level)
+                        if len(o) < len(raw): raw = o
 
-                raw = _inject_meta(raw, meta)
-                out_path.write_bytes(raw)
+                    raw = _inject_meta(raw, meta)
+                    out_path.write_bytes(raw)
 
-            elif format == "WEBP":
-                pil.save(str(out_path), format="WEBP", quality=lossy_quality, method=6)
+                elif format == "WEBP":
+                    # Para WEBP convertir a RGB si es RGBA
+                    if pil.mode == "RGBA":
+                        pil = pil.convert("RGB")
+                    pil.save(str(out_path), format="WEBP", quality=lossy_quality, method=6)
 
-            elif format == "JPEG":
-                if pil.mode == "RGBA": pil = pil.convert("RGB")
-                pil.save(str(out_path), format="JPEG", quality=lossy_quality, optimize=True)
+                elif format == "JPEG":
+                    # Para JPEG convertir a RGB
+                    if pil.mode in ["RGBA", "P"]:
+                        pil = pil.convert("RGB")
+                    pil.save(str(out_path), format="JPEG", quality=lossy_quality, optimize=True)
 
-            saved.append({"filename": out_path.name, "subfolder": subfolder, "type": "output"})
-            size_kb = out_path.stat().st_size // 1024
-            print(f"[K3NK Save] ✔ {out_path.name}  ({size_kb} KB)")
+                saved.append({"filename": out_path.name, "subfolder": subfolder, "type": "output"})
+                size_kb = out_path.stat().st_size // 1024
+                print(f"[K3NK Save] ✔ {out_path.name}  ({size_kb} KB)")
+
+            except Exception as e:
+                print(f"[K3NK Save] ✘ Error procesando imagen {idx}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
 
         return {"ui": {"images": saved}}
 
